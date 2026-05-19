@@ -26,6 +26,7 @@ function getRandomName() {
 interface UseCollabEditorOptions {
   documentId: string;
   wsUrl?: string;
+  authToken?: string;
   userName?: string;
   userColor?: string;
 }
@@ -36,6 +37,7 @@ interface UseCollabEditorReturn {
   connected: boolean;
   synced: boolean;
   ready: boolean;
+  connectionError: string | null;
 }
 
 /**
@@ -45,12 +47,14 @@ interface UseCollabEditorReturn {
 export function useCollabEditor({
   documentId,
   wsUrl = 'ws://192.168.100.18:3001/',
+  authToken,
   userName,
   userColor,
 }: UseCollabEditorOptions): UseCollabEditorReturn {
   const [connected, setConnected] = useState(false);
   const [synced, setSynced] = useState(false);
   const [ready, setReady] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const destroyTimerRef = useRef<{
     provider: WebsocketProvider;
     timer: ReturnType<typeof setTimeout>;
@@ -64,7 +68,10 @@ export function useCollabEditor({
     const sharedType = ydoc.get('content', Y.XmlText) as Y.XmlText;
 
     // Create the WebSocket provider
-    const wsProvider = new WebsocketProvider(wsUrl, documentId, ydoc, { connect: false });
+    const wsProvider = new WebsocketProvider(wsUrl, documentId, ydoc, {
+      connect: false,
+      params: authToken ? { token: authToken } : {},
+    });
 
     // Create the editor with Yjs and cursor plugins
     const editor = withCursors(
@@ -76,7 +83,7 @@ export function useCollabEditor({
     );
 
     return { editor, provider: wsProvider, ydoc };
-  }, [documentId, wsUrl, name, color]);
+  }, [authToken, documentId, wsUrl, name, color]);
 
   // Lifecycle: connect/disconnect
   useEffect(() => {
@@ -89,6 +96,9 @@ export function useCollabEditor({
 
     const onStatus = ({ status }: { status: string }) => {
       setConnected(status === 'connected');
+      if (status === 'connected') {
+        setConnectionError(null);
+      }
     };
     const onSync = (isSynced: boolean) => {
       setSynced(isSynced);
@@ -103,22 +113,47 @@ export function useCollabEditor({
       YjsEditor.connect(editor);
       setReady(true);
     };
+    const onConnectionClose = (event: CloseEvent | null) => {
+      if (!event) {
+        setConnectionError('连接已断开，正在重试');
+        return;
+      }
+
+      if (event.code === 1008) {
+        setConnectionError('连接被拒绝，请重新登录');
+        return;
+      }
+
+      if (event.code === 1011) {
+        setConnectionError('后端初始化文档失败，请检查数据库和迁移');
+        return;
+      }
+
+      if (event.reason) {
+        setConnectionError(`${event.reason} (${event.code})`);
+        return;
+      }
+
+      setConnectionError(`连接已关闭 (${event.code})`);
+    };
 
     provider.on('status', onStatus);
     provider.on('sync', onSync);
+    provider.on('connection-close', onConnectionClose);
 
     provider.connect();
 
     return () => {
-      if (YjsEditor.connected(editor)) {
-        YjsEditor.disconnect(editor);
-      }
       provider.off('status', onStatus);
       provider.off('sync', onSync);
-      provider.disconnect();
+      provider.off('connection-close', onConnectionClose);
       setReady(false);
 
       const timer = setTimeout(() => {
+        if (YjsEditor.connected(editor)) {
+          YjsEditor.disconnect(editor);
+        }
+        provider.disconnect();
         provider.destroy();
         ydoc.destroy();
 
@@ -131,5 +166,5 @@ export function useCollabEditor({
     };
   }, [editor, provider, ydoc]);
 
-  return { editor, provider, connected, synced, ready };
+  return { editor, provider, connected, synced, ready, connectionError };
 }
