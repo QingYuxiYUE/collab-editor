@@ -1,0 +1,13 @@
+{
+  "name": "collab-editor",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend start:dev",
+    "dev": "pnpm run dev:frontend & pnpm run dev:backend",
+    "build:frontend": "pnpm --filter frontend build",
+    "build:backend": "pnpm --filter backend build",
+    "clean": "find . -name node_modules -type d -prune -exec rm -rf {} +"
+  }
+}
