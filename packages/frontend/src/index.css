@@ -1454,6 +1454,7 @@ button {
   box-shadow: var(--shadow);
   position: relative;
   transition: box-shadow var(--transition);
+  overflow: auto;
 }
 
 .editor-wrapper:focus-within {
