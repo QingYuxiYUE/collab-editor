@@ -23,6 +23,7 @@ interface MeResponse {
 export interface LoginInput {
   email: string;
   password: string;
+  remember?: boolean;
 }
 
 export interface RegisterInput extends LoginInput {
@@ -31,21 +32,25 @@ export interface RegisterInput extends LoginInput {
 
 function getStoredToken() {
   try {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
   } catch {
     return null;
   }
 }
 
-function setStoredToken(token: string | null) {
+function setStoredToken(token: string | null, remember = true) {
   try {
     if (token) {
-      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      const targetStorage = remember ? localStorage : sessionStorage;
+      const staleStorage = remember ? sessionStorage : localStorage;
+      targetStorage.setItem(TOKEN_STORAGE_KEY, token);
+      staleStorage.removeItem(TOKEN_STORAGE_KEY);
     } else {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
     }
   } catch {
-    // localStorage unavailable
+    // Browser storage unavailable
   }
 }
 
@@ -125,7 +130,7 @@ export function useAuth() {
       body: JSON.stringify(input),
     });
 
-    setStoredToken(response.token);
+    setStoredToken(response.token, input.remember ?? true);
     setToken(response.token);
     setUser(response.user);
   }, []);

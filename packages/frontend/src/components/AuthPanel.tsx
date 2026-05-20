@@ -14,6 +14,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,7 +30,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
         if (isRegistering) {
           await onRegister({ name, email, password });
         } else {
-          await onLogin({ email, password });
+          await onLogin({ email, password, remember });
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : '请求失败，请稍后重试');
@@ -37,7 +38,7 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
         setSubmitting(false);
       }
     },
-    [email, isRegistering, name, onLogin, onRegister, password],
+    [email, isRegistering, name, onLogin, onRegister, password, remember],
   );
 
   return (
@@ -111,6 +112,17 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
               required
             />
           </label>
+
+          {!isRegistering && (
+            <label className="auth-remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(event) => setRemember(event.target.checked)}
+              />
+              <span>记住我，下次自动登录</span>
+            </label>
+          )}
 
           {error && (
             <div className="auth-form__error" role="alert">

@@ -16,12 +16,19 @@ import {
 } from './auth.js';
 import {
   appendDocumentUpdate,
-  ensureDocumentForUser,
+  canEditRole,
+  canShareRole,
+  createDocumentForUser,
+  getDocumentAccess,
   getDocumentStorageMode,
+  listDocumentMembers,
+  listDocumentsForUser,
   loadDocumentState,
+  setDocumentMemberRole,
+  updateDocumentTitleForUser,
 } from './documentRepository.js';
 import { checkDatabaseHealth } from './db.js';
-import { getUserStorageMode } from './userRepository.js';
+import { findUserByEmail, getUserStorageMode } from './userRepository.js';
 
 const PORT = process.env.PORT || 3001;
 const HOST = '0.0.0.0';
@@ -116,6 +123,123 @@ async function handleAuthRequest(req, res, pathname) {
   }
 }
 
+async function authenticateRequest(req) {
+  const user = await verifyAuthToken(getBearerToken(req));
+  if (!user) throw new AuthError('登录已失效，请重新登录', 401, 'unauthorized');
+  return user;
+}
+
+function readDocumentTitle(input) {
+  const title = String(input?.title || '').trim();
+
+  if (!title) {
+    throw new AuthError('文档标题不能为空', 400, 'invalid_title');
+  }
+  if (title.length > 80) {
+    throw new AuthError('文档标题不能超过 80 个字符', 400, 'invalid_title');
+  }
+
+  return title;
+}
+
+function readMemberShareInput(input) {
+  const email = String(input?.email || '').trim().toLowerCase();
+  const role = String(input?.role || '').trim();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new AuthError('请输入要共享用户的有效邮箱', 400, 'invalid_email');
+  }
+  if (!canShareRole(role)) {
+    throw new AuthError('共享权限只能是可编辑或只读', 400, 'invalid_role');
+  }
+
+  return { email, role };
+}
+
+async function handleDocumentRequest(req, res, pathname) {
+  try {
+    const user = await authenticateRequest(req);
+
+    if (req.method === 'GET' && pathname === '/api/documents') {
+      sendJson(res, 200, { documents: await listDocumentsForUser(user.id) });
+      return true;
+    }
+
+    if (req.method === 'POST' && pathname === '/api/documents') {
+      const document = await createDocumentForUser(user, await readJsonBody(req));
+      sendJson(res, 201, { document });
+      return true;
+    }
+
+    const membersMatch = pathname.match(/^\/api\/documents\/([^/]+)\/members$/);
+    if (membersMatch) {
+      const documentId = decodeURIComponent(membersMatch[1]);
+      const document = await getDocumentAccess(documentId, user.id);
+      if (!document) throw new AuthError('没有访问这个文档的权限', 403, 'forbidden');
+      if (document.role !== 'owner') {
+        throw new AuthError('只有文档所有者可以管理共享成员', 403, 'forbidden');
+      }
+
+      if (req.method === 'GET') {
+        sendJson(res, 200, { members: await listDocumentMembers(documentId) });
+        return true;
+      }
+
+      if (req.method === 'POST') {
+        const { email, role } = readMemberShareInput(await readJsonBody(req));
+        const targetUser = await findUserByEmail(email);
+        if (!targetUser) {
+          throw new AuthError('这个邮箱还没有注册账号', 404, 'user_not_found');
+        }
+        if (targetUser.id === user.id || targetUser.id === document.ownerId) {
+          throw new AuthError('所有者已经拥有完整权限', 400, 'owner_role_locked');
+        }
+
+        const member = await setDocumentMemberRole(documentId, targetUser, role);
+        sendJson(res, 200, { member });
+        return true;
+      }
+    }
+
+    const documentMatch = pathname.match(/^\/api\/documents\/([^/]+)$/);
+    if (req.method === 'GET' && documentMatch) {
+      const document = await getDocumentAccess(decodeURIComponent(documentMatch[1]), user.id);
+      if (!document) throw new AuthError('没有访问这个文档的权限', 403, 'forbidden');
+      sendJson(res, 200, { document });
+      return true;
+    }
+
+    if (req.method === 'PATCH' && documentMatch) {
+      const documentId = decodeURIComponent(documentMatch[1]);
+      const access = await getDocumentAccess(documentId, user.id);
+      if (!access) throw new AuthError('没有访问这个文档的权限', 403, 'forbidden');
+      if (!canEditRole(access.role)) {
+        throw new AuthError('只读用户不能修改文档标题', 403, 'read_only');
+      }
+
+      const document = await updateDocumentTitleForUser(
+        documentId,
+        user.id,
+        readDocumentTitle(await readJsonBody(req)),
+      );
+      sendJson(res, 200, { document });
+      return true;
+    }
+
+    sendJson(res, 404, { error: '文档接口不存在', code: 'not_found' });
+    return true;
+  } catch (err) {
+    if (err instanceof AuthError) {
+      sendJson(res, err.statusCode, { error: err.message, code: err.code });
+      return true;
+    }
+
+    console.error('Document route error:', err);
+    sendJson(res, 500, { error: '文档服务暂时不可用', code: 'internal_error' });
+    return true;
+  }
+}
+
 /**
  * In-memory document store
  * Each doc has: ydoc (Y.Doc), awareness (awarenessProtocol.Awareness), conns (Set<WebSocket>)
@@ -130,9 +254,7 @@ function createSyncUpdateMessage(update) {
   return encoding.toUint8Array(encoder);
 }
 
-async function createDoc(docName, user) {
-  await ensureDocumentForUser(docName, user);
-
+async function createDoc(docName) {
   const ydoc = new Y.Doc();
   const awareness = new awarenessProtocol.Awareness(ydoc);
   const persistedState = await loadDocumentState(docName);
@@ -149,6 +271,15 @@ async function createDoc(docName, user) {
 
   // Listen for awareness changes and broadcast
   awareness.on('update', ({ added, updated, removed }, conn) => {
+    if (conn && typeof conn === 'object' && conn.awarenessClientIds instanceof Set) {
+      for (const clientId of added.concat(updated)) {
+        conn.awarenessClientIds.add(clientId);
+      }
+      for (const clientId of removed) {
+        conn.awarenessClientIds.delete(clientId);
+      }
+    }
+
     const changedClients = added.concat(updated, removed);
     const doc = docs.get(docName);
     if (!doc) return;
@@ -191,21 +322,18 @@ async function createDoc(docName, user) {
   return doc;
 }
 
-async function getOrCreateDoc(docName, user) {
+async function getOrCreateDoc(docName) {
   const existingDoc = docs.get(docName);
   if (existingDoc) {
-    await ensureDocumentForUser(docName, user);
     return existingDoc;
   }
 
   const existingLoad = docLoads.get(docName);
   if (existingLoad) {
-    const doc = await existingLoad;
-    await ensureDocumentForUser(docName, user);
-    return doc;
+    return existingLoad;
   }
 
-  const load = createDoc(docName, user).finally(() => {
+  const load = createDoc(docName).finally(() => {
     docLoads.delete(docName);
   });
 
@@ -218,7 +346,7 @@ const server = http.createServer(async (req, res) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -230,6 +358,10 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname.startsWith('/api/auth/')) {
     if (await handleAuthRequest(req, res, url.pathname)) return;
+  }
+
+  if (url.pathname.startsWith('/api/documents')) {
+    if (await handleDocumentRequest(req, res, url.pathname)) return;
   }
 
   if (url.pathname === '/health') {
@@ -267,6 +399,8 @@ wss.on('connection', (ws, req) => {
 });
 
 async function handleConnection(ws, req) {
+  ws.awarenessClientIds = new Set();
+
   const pendingMessages = [];
   const queueMessage = (data) => {
     pendingMessages.push(data);
@@ -284,7 +418,16 @@ async function handleConnection(ws, req) {
   }
 
   const docName = decodeURIComponent(url.pathname.slice(1)) || 'default';
-  const doc = await getOrCreateDoc(docName, user);
+  const documentAccess = await getDocumentAccess(docName, user.id);
+  if (!documentAccess) {
+    ws.off('message', queueMessage);
+    console.warn(`⚠️  Rejected WebSocket connection for "${docName}": no document access`);
+    ws.close(1008, 'Forbidden');
+    return;
+  }
+
+  const canEdit = canEditRole(documentAccess.role);
+  const doc = await getOrCreateDoc(docName);
   if (ws.readyState !== WS_OPEN) {
     ws.off('message', queueMessage);
     return;
@@ -292,7 +435,9 @@ async function handleConnection(ws, req) {
 
   doc.conns.add(ws);
 
-  console.log(`🔗 ${user.email} connected to "${docName}" (${doc.conns.size} total)`);
+  console.log(
+    `🔗 ${user.email} connected to "${docName}" as ${documentAccess.role} (${doc.conns.size} total)`,
+  );
 
   const handleMessage = (data) => {
     try {
@@ -302,6 +447,15 @@ async function handleConnection(ws, req) {
 
       switch (messageType) {
         case MSG_SYNC: {
+          const syncTypeDecoder = decoding.createDecoder(message);
+          decoding.readVarUint(syncTypeDecoder);
+          const syncMessageType = decoding.readVarUint(syncTypeDecoder);
+
+          if (!canEdit && syncMessageType !== syncProtocol.messageYjsSyncStep1) {
+            console.warn(`⚠️  Ignored read-only sync update from ${user.email} for "${docName}"`);
+            break;
+          }
+
           const encoder = encoding.createEncoder();
           encoding.writeVarUint(encoder, MSG_SYNC);
           syncProtocol.readSyncMessage(decoder, encoder, doc.ydoc, {
@@ -362,7 +516,11 @@ async function handleConnection(ws, req) {
     doc.conns.delete(ws);
 
     // Remove awareness state for disconnected client
-    awarenessProtocol.removeAwarenessStates(doc.awareness, [doc.ydoc.clientID], null);
+    const awarenessClientIds = Array.from(ws.awarenessClientIds);
+    if (awarenessClientIds.length > 0) {
+      awarenessProtocol.removeAwarenessStates(doc.awareness, awarenessClientIds, null);
+      ws.awarenessClientIds.clear();
+    }
 
     console.log(`❌ Client disconnected from "${docName}" (${doc.conns.size} remaining)`);
 

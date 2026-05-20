@@ -29,6 +29,7 @@ interface UseCollabEditorOptions {
   authToken?: string;
   userName?: string;
   userColor?: string;
+  canInitialize?: boolean;
 }
 
 interface UseCollabEditorReturn {
@@ -50,6 +51,7 @@ export function useCollabEditor({
   authToken,
   userName,
   userColor,
+  canInitialize = true,
 }: UseCollabEditorOptions): UseCollabEditorReturn {
   const [connected, setConnected] = useState(false);
   const [synced, setSynced] = useState(false);
@@ -104,7 +106,7 @@ export function useCollabEditor({
       setSynced(isSynced);
       if (!isSynced || YjsEditor.connected(editor)) return;
 
-      if (editor.sharedRoot.toDelta().length === 0) {
+      if (canInitialize && editor.sharedRoot.toDelta().length === 0) {
         editor.sharedRoot.applyDelta(slateNodesToInsertDelta(createEmptyDocument()), {
           sanitize: false,
         });
@@ -164,7 +166,7 @@ export function useCollabEditor({
 
       destroyTimerRef.current = { provider, timer };
     };
-  }, [editor, provider, ydoc]);
+  }, [canInitialize, editor, provider, ydoc]);
 
   return { editor, provider, connected, synced, ready, connectionError };
 }
