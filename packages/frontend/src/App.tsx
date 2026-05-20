@@ -62,7 +62,7 @@ const EditorShell: React.FC<EditorShellProps> = ({
   const renderLeaf = useRenderLeaf();
   const initialValue = useMemo(() => createEmptyDocument(), []);
 
-  const [wordCount, setWordCount] = useState(0);
+  const [characterCount, setCharacterCount] = useState(0);
   const [titleDraft, setTitleDraft] = useState(document.title);
   const [renaming, setRenaming] = useState(false);
   const [savingTitle, setSavingTitle] = useState(false);
@@ -71,10 +71,9 @@ const EditorShell: React.FC<EditorShellProps> = ({
 
   const handleChange = useCallback(
     (value: Descendant[]) => {
-      // Calculate word count
       const text = value.map((n) => Node.string(n)).join('\n');
-      const words = text.trim().split(/\s+/).filter(Boolean).length;
-      setWordCount(words);
+      const visibleCharacters = Array.from(text.replace(/\s/g, '')).length;
+      setCharacterCount(visibleCharacters);
     },
     [],
   );
@@ -256,7 +255,7 @@ const EditorShell: React.FC<EditorShellProps> = ({
       {/* Footer */}
       <footer className="app-footer">
         <div className="footer-stats">
-          <span>字数: {wordCount}</span>
+          <span>字数: {characterCount}</span>
           <span>文档: {document.title}</span>
         </div>
         <span>React + Slate.js + Yjs</span>
