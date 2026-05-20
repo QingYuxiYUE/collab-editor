@@ -1,5 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { LoginOutlined, UserAddOutlined } from '@ant-design/icons';
+import {
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  LoginOutlined,
+  UserAddOutlined,
+} from '@ant-design/icons';
 import type { LoginInput, RegisterInput } from '../hooks/useAuth';
 
 type AuthMode = 'login' | 'register';
@@ -14,6 +19,8 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +35,11 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
 
       try {
         if (isRegistering) {
+          if (password !== confirmPassword) {
+            setError('两次输入的密码不一致');
+            return;
+          }
+
           await onRegister({ name, email, password });
         } else {
           await onLogin({ email, password, remember });
@@ -38,7 +50,16 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
         setSubmitting(false);
       }
     },
-    [email, isRegistering, name, onLogin, onRegister, password, remember],
+    [
+      confirmPassword,
+      email,
+      isRegistering,
+      name,
+      onLogin,
+      onRegister,
+      password,
+      remember,
+    ],
   );
 
   return (
@@ -103,15 +124,51 @@ const AuthPanel: React.FC<AuthPanelProps> = ({ onLogin, onRegister }) => {
 
           <label className="auth-field">
             <span>密码</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete={isRegistering ? 'new-password' : 'current-password'}
-              minLength={8}
-              required
-            />
+            <span className="auth-password-control">
+              <input
+                type={passwordVisible ? 'text' : 'password'}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                minLength={8}
+                required
+              />
+              <button
+                className="auth-password-control__button"
+                type="button"
+                onClick={() => setPasswordVisible((current) => !current)}
+                aria-label={passwordVisible ? '隐藏密码' : '显示密码'}
+                title={passwordVisible ? '隐藏密码' : '显示密码'}
+              >
+                {passwordVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+              </button>
+            </span>
           </label>
+
+          {isRegistering && (
+            <label className="auth-field">
+              <span>确认密码</span>
+              <span className="auth-password-control">
+                <input
+                  type={passwordVisible ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+                <button
+                  className="auth-password-control__button"
+                  type="button"
+                  onClick={() => setPasswordVisible((current) => !current)}
+                  aria-label={passwordVisible ? '隐藏密码' : '显示密码'}
+                  title={passwordVisible ? '隐藏密码' : '显示密码'}
+                >
+                  {passwordVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                </button>
+              </span>
+            </label>
+          )}
 
           {!isRegistering && (
             <label className="auth-remember">

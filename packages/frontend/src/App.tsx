@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import { Slate, Editable } from 'slate-react';
 import { Node, type Descendant } from 'slate';
 import {
@@ -11,7 +11,6 @@ import {
 } from '@ant-design/icons';
 import AuthPanel from './components/AuthPanel';
 import DocumentList from './components/DocumentList';
-import DocumentSharePanel from './components/DocumentSharePanel';
 import Toolbar from './components/Toolbar';
 import { RemoteCursorOverlay } from './components/RemoteCursors';
 import UserPresence from './components/UserPresence';
@@ -28,6 +27,8 @@ import { useRenderElement, useRenderLeaf } from './hooks/useEditorRenderers';
 import { handleHotkey } from './utils/editor-helpers';
 import { createEmptyDocument } from './utils/editor-value';
 import { WS_URL } from './utils/runtime-config';
+
+const DocumentSharePanel = React.lazy(() => import('./components/DocumentSharePanel'));
 
 interface EditorShellProps {
   user: AuthUser;
@@ -222,11 +223,13 @@ const EditorShell: React.FC<EditorShellProps> = ({
       </header>
 
       {sharingOpen && canShare && (
-        <DocumentSharePanel
-          documentId={document.id}
-          token={token}
-          onClose={() => setSharingOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <DocumentSharePanel
+            documentId={document.id}
+            token={token}
+            onClose={() => setSharingOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* Editor */}

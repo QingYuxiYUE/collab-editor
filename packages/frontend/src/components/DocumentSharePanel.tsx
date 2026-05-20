@@ -1,10 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { ReloadOutlined, ShareAltOutlined, UserAddOutlined } from '@ant-design/icons';
 import {
-  CloseOutlined,
-  ReloadOutlined,
-  ShareAltOutlined,
-  UserAddOutlined,
-} from '@ant-design/icons';
+  Alert,
+  Avatar,
+  Button,
+  ConfigProvider,
+  Empty,
+  Form,
+  Input,
+  List,
+  Modal,
+  Select,
+  Tag,
+  Typography,
+} from 'antd';
 import {
   listDocumentMembersRequest,
   shareDocumentRequest,
@@ -18,6 +27,29 @@ interface DocumentSharePanelProps {
   token: string;
   onClose(): void;
 }
+
+interface ShareFormValues {
+  email: string;
+  role: ShareDocumentRole;
+}
+
+const shareModalTheme = {
+  token: {
+    borderRadius: 8,
+    colorBgContainer: 'var(--bg-surface)',
+    colorBgElevated: 'var(--bg-elevated)',
+    colorBorder: 'var(--border)',
+    colorError: 'var(--danger)',
+    colorPrimary: 'var(--primary)',
+    colorPrimaryHover: 'var(--primary-hover)',
+    colorSuccess: 'var(--success)',
+    colorText: 'var(--text)',
+    colorTextSecondary: 'var(--text-secondary)',
+    colorTextTertiary: 'var(--text-muted)',
+    controlHeight: 42,
+    fontFamily: 'var(--font-sans)',
+  },
+};
 
 function getRoleLabel(role: DocumentRole) {
   if (role === 'owner') return '所有者';
@@ -44,9 +76,8 @@ const DocumentSharePanel: React.FC<DocumentSharePanelProps> = ({
   token,
   onClose,
 }) => {
+  const [form] = Form.useForm<ShareFormValues>();
   const [members, setMembers] = useState<DocumentMember[]>([]);
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<ShareDocumentRole>('editor');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -90,21 +121,25 @@ const DocumentSharePanel: React.FC<DocumentSharePanelProps> = ({
   }, [documentId, token]);
 
   const handleShare = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
+    async (values: ShareFormValues) => {
       setError('');
       setNotice('');
       setSubmitting(true);
 
       try {
-        const member = await shareDocumentRequest(token, documentId, email, role);
+        const member = await shareDocumentRequest(
+          token,
+          documentId,
+          values.email,
+          values.role,
+        );
         setMembers((current) => {
           const nextMembers = current.some((item) => item.userId === member.userId)
             ? current.map((item) => (item.userId === member.userId ? member : item))
             : [...current, member];
           return sortMembers(nextMembers);
         });
-        setEmail('');
+        form.resetFields(['email']);
         setNotice(`已共享给 ${member.name}`);
       } catch (err) {
         setError(err instanceof Error ? err.message : '共享失败');
@@ -112,103 +147,130 @@ const DocumentSharePanel: React.FC<DocumentSharePanelProps> = ({
         setSubmitting(false);
       }
     },
-    [documentId, email, role, token],
+    [documentId, form, token],
   );
 
   return (
-    <section className="share-panel" aria-labelledby="share-panel-title">
-      <div className="share-panel__inner">
-        <div className="share-panel__header">
-          <div>
-            <h2 id="share-panel-title">
+    <ConfigProvider theme={shareModalTheme}>
+      <Modal
+        centered
+        className="share-modal"
+        destroyOnHidden
+        footer={null}
+        open
+        rootClassName="share-modal-root"
+        title={
+          <div className="share-modal__title">
+            <span className="share-modal__title-icon">
               <ShareAltOutlined />
-              文档共享
-            </h2>
-            <p>{members.length} 个成员</p>
+            </span>
+            <div>
+              <Typography.Title level={2}>文档共享</Typography.Title>
+              <Typography.Text type="secondary">{members.length} 个成员</Typography.Text>
+            </div>
           </div>
-          <div className="share-panel__actions">
-            <button
-              className="share-panel__icon-button"
-              type="button"
-              onClick={() => void loadMembers()}
-              disabled={loading}
-              aria-label="刷新成员"
-              title="刷新成员"
-            >
-              <ReloadOutlined />
-            </button>
-            <button
-              className="share-panel__icon-button"
-              type="button"
-              onClick={onClose}
-              aria-label="关闭共享面板"
-              title="关闭"
-            >
-              <CloseOutlined />
-            </button>
-          </div>
-        </div>
+        }
+        width={640}
+        onCancel={onClose}
+      >
+        <Form
+          className="share-modal__form"
+          form={form}
+          initialValues={{ role: 'editor' }}
+          layout="vertical"
+          onFinish={handleShare}
+        >
+          <Form.Item
+            label="用户邮箱"
+            name="email"
+            rules={[
+              { required: true, message: '请输入用户邮箱' },
+              { type: 'email', message: '请输入有效邮箱' },
+            ]}
+          >
+            <Input autoComplete="email" placeholder="name@example.com" />
+          </Form.Item>
 
-        <form className="share-form" onSubmit={handleShare}>
-          <label className="share-form__field">
-            <span>用户邮箱</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@example.com"
-              required
+          <Form.Item label="权限" name="role" rules={[{ required: true, message: '请选择权限' }]}>
+            <Select
+              options={[
+                { value: 'editor', label: '可编辑' },
+                { value: 'viewer', label: '只读' },
+              ]}
+              popupClassName="share-modal__select-dropdown"
             />
-          </label>
-          <label className="share-form__field share-form__field--role">
-            <span>权限</span>
-            <select
-              value={role}
-              onChange={(event) => setRole(event.target.value as ShareDocumentRole)}
-            >
-              <option value="editor">可编辑</option>
-              <option value="viewer">只读</option>
-            </select>
-          </label>
-          <button className="share-form__submit" type="submit" disabled={submitting}>
-            <UserAddOutlined />
-            {submitting ? '共享中...' : '共享'}
-          </button>
-        </form>
+          </Form.Item>
+
+          <Button
+            block
+            className="share-modal__submit"
+            htmlType="submit"
+            icon={<UserAddOutlined />}
+            loading={submitting}
+            type="primary"
+          >
+            共享
+          </Button>
+        </Form>
 
         {(error || notice) && (
-          <div
-            className={error ? 'share-panel__error' : 'share-panel__notice'}
-            role={error ? 'alert' : 'status'}
-          >
-            {error || notice}
-          </div>
+          <Alert
+            className="share-modal__alert"
+            message={error || notice}
+            showIcon
+            type={error ? 'error' : 'success'}
+          />
         )}
 
-        <div className="share-member-list" aria-label="共享成员列表">
-          {loading ? (
-            <div className="share-member-list__empty">正在加载成员...</div>
-          ) : members.length === 0 ? (
-            <div className="share-member-list__empty">暂无成员</div>
-          ) : (
-            members.map((member) => (
-              <div className="share-member" key={member.userId}>
-                <div className="share-member__avatar" style={{ backgroundColor: member.color }}>
-                  {member.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="share-member__meta">
-                  <span className="share-member__name">{member.name}</span>
-                  <span className="share-member__email">{member.email}</span>
-                </div>
-                <span className={`share-member__role share-member__role--${member.role}`}>
-                  {getRoleLabel(member.role)}
-                </span>
-              </div>
-            ))
-          )}
+        <div className="share-modal__members-header">
+          <Typography.Text strong>成员列表</Typography.Text>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            size="small"
+            type="text"
+            onClick={() => void loadMembers()}
+          >
+            刷新
+          </Button>
         </div>
-      </div>
-    </section>
+
+        {loading ? (
+          <div className="share-modal__loading">正在加载成员...</div>
+        ) : members.length === 0 ? (
+          <Empty className="share-modal__empty" description="暂无成员" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <List
+            className="share-modal__member-list"
+            dataSource={members}
+            rowKey="userId"
+            renderItem={(member) => (
+              <List.Item
+                actions={[
+                  <Tag
+                    className={`share-modal__role-tag share-modal__role-tag--${member.role}`}
+                    key="role"
+                    bordered={false}
+                  >
+                    {getRoleLabel(member.role)}
+                  </Tag>,
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={
+                    <Avatar className="share-modal__avatar" style={{ backgroundColor: member.color }}>
+                      {member.name.charAt(0).toUpperCase()}
+                    </Avatar>
+                  }
+                  description={<span className="share-modal__member-email">{member.email}</span>}
+                  title={<span className="share-modal__member-name">{member.name}</span>}
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Modal>
+    </ConfigProvider>
   );
 };
 

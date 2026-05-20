@@ -72,7 +72,7 @@ html, body, #root,
 .document-create__button, .document-list__refresh,
 .editor-back, .header-action, .document-title-view__button,
 .document-title-editor__button, .share-panel__icon-button,
-.share-form__submit {
+.share-form__submit, .auth-password-control__button {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -191,6 +191,41 @@ button {
 .auth-field input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.auth-password-control {
+  position: relative;
+  display: block;
+}
+
+.auth-password-control input {
+  padding-right: 44px;
+}
+
+.auth-password-control__button {
+  width: 34px;
+  height: 34px;
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.auth-password-control__button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.auth-password-control__button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .auth-remember {
@@ -571,7 +606,8 @@ button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  padding: 1px 0;
 }
 
 .document-title-view .app-header__title {
@@ -581,7 +617,6 @@ button {
   white-space: nowrap;
 }
 
-.document-title-view__button,
 .document-title-editor__button,
 .share-panel__icon-button {
   width: 34px;
@@ -597,12 +632,54 @@ button {
   cursor: pointer;
 }
 
-.document-title-view__button:hover,
 .document-title-editor__button:hover,
 .share-panel__icon-button:hover {
   border-color: var(--border-light);
   background: var(--bg-hover);
   color: var(--text);
+}
+
+.document-title-view__button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.72;
+  transform: translateY(1px);
+  transition:
+    background-color var(--transition),
+    color var(--transition),
+    opacity var(--transition),
+    transform var(--transition);
+}
+
+.document-title-view:hover .document-title-view__button,
+.document-title-view__button:focus-visible {
+  opacity: 1;
+}
+
+.document-title-view__button:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.document-title-view__button:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.document-title-view__button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .document-title-editor {
@@ -852,6 +929,272 @@ button {
 }
 
 .share-member__role--viewer {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+}
+
+/* ===== Share Modal ===== */
+.share-modal-root .ant-modal-mask {
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(6px);
+}
+
+.share-modal .ant-modal-content {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.share-modal .ant-modal-header {
+  margin-bottom: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.share-modal .ant-modal-body {
+  padding: 18px 20px 20px;
+  background: var(--bg-elevated);
+}
+
+.share-modal .ant-modal-close {
+  top: 16px;
+  right: 16px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.share-modal .ant-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.share-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 34px;
+}
+
+.share-modal__title-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.share-modal__title .ant-typography {
+  margin: 0;
+}
+
+.share-modal__title h2.ant-typography {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.share-modal__title span.ant-typography {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.share-modal__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px 116px;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.share-modal__form .ant-form-item {
+  margin-bottom: 0;
+}
+
+.share-modal__form .ant-form-item-label {
+  padding-bottom: 6px;
+}
+
+.share-modal__form .ant-form-item-label > label {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.share-modal .ant-input,
+.share-modal .ant-select-selector {
+  border-color: var(--border) !important;
+  background: var(--bg-surface) !important;
+  color: var(--text) !important;
+}
+
+.share-modal .ant-input::placeholder {
+  color: var(--text-muted);
+}
+
+.share-modal .ant-input:hover,
+.share-modal .ant-select:hover .ant-select-selector {
+  border-color: var(--border-light) !important;
+}
+
+.share-modal .ant-input:focus,
+.share-modal .ant-input-focused,
+.share-modal .ant-select-focused .ant-select-selector {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+}
+
+.share-modal__submit {
+  height: 42px;
+  margin-top: 28px;
+  border-color: var(--primary) !important;
+  background: var(--primary) !important;
+  color: #fff !important;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.share-modal__submit:hover,
+.share-modal__submit:focus-visible {
+  border-color: var(--primary-hover) !important;
+  background: var(--primary-hover) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+}
+
+.share-modal__submit:disabled,
+.share-modal__submit:disabled:hover {
+  border-color: var(--primary) !important;
+  background: var(--primary) !important;
+  color: #fff !important;
+  opacity: 0.65;
+}
+
+.share-modal__select-dropdown {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.share-modal__select-dropdown .ant-select-item {
+  color: var(--text-secondary);
+}
+
+.share-modal__select-dropdown .ant-select-item-option-active {
+  background: var(--bg-hover) !important;
+  color: var(--text);
+}
+
+.share-modal__select-dropdown .ant-select-item-option-selected {
+  background: var(--primary-light) !important;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.share-modal__alert {
+  margin-bottom: 14px;
+  border-radius: 8px;
+}
+
+.share-modal__members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 8px;
+}
+
+.share-modal__members-header .ant-typography {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.share-modal__members-header .ant-btn {
+  color: var(--text-secondary);
+}
+
+.share-modal__members-header .ant-btn:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text) !important;
+}
+
+.share-modal__loading,
+.share-modal__empty {
+  min-height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.share-modal__empty {
+  margin: 0;
+}
+
+.share-modal__member-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+}
+
+.share-modal__member-list .ant-list-item {
+  min-height: 62px;
+  padding: 11px 12px !important;
+  border-block-end: 1px solid var(--border) !important;
+}
+
+.share-modal__member-list .ant-list-item:last-child {
+  border-block-end: 0 !important;
+}
+
+.share-modal__avatar {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-modal__member-name {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.share-modal__member-email {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.share-modal__role-tag {
+  min-width: 58px;
+  margin-inline-end: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-modal__role-tag--owner,
+.share-modal__role-tag--editor {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.share-modal__role-tag--viewer {
   background: rgba(245, 158, 11, 0.12);
   color: var(--warning);
 }
@@ -1465,5 +1808,33 @@ button {
   .share-member__role {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .share-modal {
+    max-width: calc(100vw - 24px);
+  }
+
+  .share-modal .ant-modal-header {
+    padding: 16px 16px 12px;
+  }
+
+  .share-modal .ant-modal-body {
+    padding: 16px;
+  }
+
+  .share-modal__form {
+    grid-template-columns: 1fr;
+  }
+
+  .share-modal__submit {
+    margin-top: 0;
+  }
+
+  .share-modal__member-list {
+    max-height: 260px;
+  }
+
+  .share-modal__member-list .ant-list-item {
+    align-items: flex-start;
   }
 }
